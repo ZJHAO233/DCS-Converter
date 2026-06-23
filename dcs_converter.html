@@ -1,0 +1,1780 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DCS试验表转换工具</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family:
+          -apple-system, "SF Pro Display", "Microsoft YaHei UI", sans-serif;
+        min-height: 100vh;
+        color: #e2e8f0;
+        overflow-x: hidden;
+        background: #0c1222;
+      }
+
+      /* BG */
+      .bg {
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+        background:
+          radial-gradient(
+            ellipse 80% 50% at 10% 15%,
+            rgba(99, 102, 241, 0.14),
+            transparent 55%
+          ),
+          radial-gradient(
+            ellipse 60% 70% at 90% 85%,
+            rgba(6, 182, 212, 0.1),
+            transparent 55%
+          ),
+          radial-gradient(
+            ellipse 40% 40% at 50% 50%,
+            rgba(139, 92, 246, 0.06),
+            transparent 60%
+          );
+      }
+
+      /* watermarks */
+      .wm {
+        position: fixed;
+        z-index: 0;
+        pointer-events: none;
+        font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+        font-weight: 700;
+        color: rgba(255, 255, 255, 0.035);
+        white-space: nowrap;
+        user-select: none;
+        will-change: transform, opacity;
+        animation:
+          breathe var(--dur) ease-in-out infinite alternate,
+          drift var(--dur2) ease-in-out infinite alternate;
+        animation-delay: var(--delay), var(--delay2);
+      }
+      @keyframes breathe {
+        0% {
+          opacity: 0.15;
+          transform: var(--rot) scale(1);
+        }
+        50% {
+          opacity: 1;
+          filter: blur(0.3px);
+          transform: var(--rot) scale(1.015);
+        }
+        100% {
+          opacity: 0.15;
+          transform: var(--rot) scale(1);
+        }
+      }
+      @keyframes drift {
+        0% {
+          transform: var(--rot) translate(0, 0);
+        }
+        100% {
+          transform: var(--rot) translate(var(--dx), var(--dy));
+        }
+      }
+
+      /* mouse blobs */
+      .mg {
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+        pointer-events: none;
+        overflow: hidden;
+      }
+      .mb {
+        position: absolute;
+        border-radius: 50%;
+        will-change: transform;
+      }
+      .mb1 {
+        width: 80px;
+        height: 80px;
+        background: radial-gradient(
+          circle,
+          rgba(99, 102, 241, 0.45),
+          rgba(99, 102, 241, 0.1) 40%,
+          transparent 70%
+        );
+        filter: blur(20px);
+      }
+      .mb2 {
+        width: 60px;
+        height: 60px;
+        background: radial-gradient(
+          circle,
+          rgba(6, 182, 212, 0.4),
+          rgba(6, 182, 212, 0.08) 45%,
+          transparent 70%
+        );
+        filter: blur(15px);
+      }
+      .mb3 {
+        width: 40px;
+        height: 40px;
+        background: radial-gradient(
+          circle,
+          rgba(192, 132, 252, 0.45),
+          rgba(192, 132, 252, 0.08) 40%,
+          transparent 70%
+        );
+        filter: blur(12px);
+      }
+      .mb4 {
+        width: 50px;
+        height: 50px;
+        background: radial-gradient(circle, rgba(139, 92, 246, 0.35), transparent 70%);
+        filter: blur(10px);
+      }
+
+      .ab {
+        position: fixed;
+        border-radius: 50%;
+        filter: blur(80px);
+        z-index: 0;
+        will-change: transform;
+        animation: drift2 20s ease-in-out infinite alternate;
+      }
+      .ab1 {
+        width: 300px;
+        height: 300px;
+        background: rgba(99, 102, 241, 0.12);
+        top: -8%;
+        left: -5%;
+      }
+      .ab2 {
+        width: 260px;
+        height: 260px;
+        background: rgba(6, 182, 212, 0.08);
+        bottom: -6%;
+        right: -4%;
+        animation-delay: -7s;
+      }
+      .ab3 {
+        width: 200px;
+        height: 200px;
+        background: rgba(139, 92, 246, 0.06);
+        top: 45%;
+        left: 55%;
+        animation-delay: -13s;
+      }
+      @keyframes drift2 {
+        0% {
+          transform: translate3d(0, 0, 0) scale(1);
+        }
+        50% {
+          transform: translate3d(20px, -30px, 0) scale(1.05);
+        }
+        100% {
+          transform: translate3d(-12px, 20px, 0) scale(0.96);
+        }
+      }
+
+      /* LAYOUT */
+      .wrap {
+        position: relative;
+        z-index: 1;
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 16px 20px 12px;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      /* header */
+      .hdr-card {
+        padding: 12px 20px;
+        margin-bottom: 12px;
+      }
+      .hdr {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        animation: rise 0.6s cubic-bezier(0.23, 1, 0.32, 1) both;
+        flex-shrink: 0;
+      }
+      .hdr-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #6366f1, #06b6d4);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        box-shadow:
+          0 4px 16px rgba(99, 102, 241, 0.35),
+          0 0 20px rgba(99, 102, 241, 0.2);
+        flex-shrink: 0;
+      }
+      .hdr-text {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .hdr h1 {
+        font-size: 20px;
+        font-weight: 700;
+        background: linear-gradient(135deg, #a5b4fc, #22d3ee);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        letter-spacing: -0.5px;
+        margin: 0;
+      }
+      .hdr p {
+        font-size: 11px;
+        color: #64748b;
+        margin-top: 3px;
+      }
+
+      /* glass */
+      .gl {
+        background: rgba(22, 33, 55, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.07);
+        border-radius: 14px;
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        box-shadow:
+          0 8px 32px rgba(0, 0, 0, 0.28),
+          0 0 12px rgba(99, 102, 241, 0.05),
+          0 1px 0 rgba(255, 255, 255, 0.04) inset;
+        transition:
+          border-color 0.4s,
+          box-shadow 0.4s;
+        animation: rise 0.6s cubic-bezier(0.23, 1, 0.32, 1) both;
+        overflow: hidden;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        will-change: transform;
+      }
+      .gl::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: 14px;
+        background: linear-gradient(
+          135deg,
+          rgba(255, 255, 255, 0.04),
+          transparent 50%
+        );
+        pointer-events: none;
+      }
+      .gl:hover {
+        border-color: rgba(99, 102, 241, 0.25);
+        box-shadow:
+          0 12px 40px rgba(0, 0, 0, 0.32),
+          0 0 24px rgba(99, 102, 241, 0.1),
+          0 1px 0 rgba(255, 255, 255, 0.04) inset;
+      }
+      @keyframes rise {
+        from {
+          opacity: 0;
+          transform: translate3d(0, 18px, 0);
+        }
+        to {
+          opacity: 1;
+          transform: translate3d(0, 0, 0);
+        }
+      }
+
+      .gh {
+        padding: 10px 14px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        flex-shrink: 0;
+      }
+      .gi {
+        width: 26px;
+        height: 26px;
+        border-radius: 7px;
+        background: linear-gradient(135deg, #6366f1, #06b6d4);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        box-shadow:
+          0 3px 10px rgba(99, 102, 241, 0.3),
+          0 0 12px rgba(99, 102, 241, 0.12);
+      }
+      .gh h2 {
+        font-size: 13px;
+        font-weight: 600;
+      }
+      .gb {
+        padding: 12px 14px;
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      /* LAYOUT */
+      .main-layout {
+        display: flex;
+        gap: 12px;
+        align-items: stretch;
+        flex: 1;
+        min-height: 0;
+      }
+      .sidebar {
+        width: 240px;
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        min-height: 0;
+      }
+      .main-content {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+
+      /* upload */
+      .drop {
+        border: 1.5px dashed rgba(255, 255, 255, 0.08);
+        border-radius: 12px;
+        padding: 36px 16px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+        background: rgba(0, 0, 0, 0.12);
+        position: relative;
+        overflow: hidden;
+      }
+      .drop:hover {
+        border-color: rgba(99, 102, 241, 0.35);
+        background: rgba(99, 102, 241, 0.03);
+      }
+      .drop.dragover {
+        border-color: rgba(6, 182, 212, 0.6);
+        background: rgba(6, 182, 212, 0.06);
+        transform: scale(1.02);
+        box-shadow: 0 0 30px rgba(6, 182, 212, 0.15);
+      }
+      .drop.processing {
+        border-color: rgba(99, 102, 241, 0.5);
+        pointer-events: none;
+      }
+
+      /* progress bar */
+      .progress-wrap {
+        height: 3px;
+        background: rgba(255,255,255,0.05);
+        border-radius: 2px;
+        margin-top: 10px;
+        overflow: hidden;
+        opacity: 0;
+        transition: opacity 0.3s;
+      }
+      .progress-wrap.active {
+        opacity: 1;
+      }
+      .progress-bar {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, #6366f1, #06b6d4, #a78bfa);
+        background-size: 200% 100%;
+        border-radius: 2px;
+        transition: width 0.3s ease;
+        animation: progressShimmer 1.5s ease infinite;
+      }
+      @keyframes progressShimmer {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+      }
+      .ring {
+        width: 52px;
+        height: 52px;
+        margin: 0 auto 12px;
+        border-radius: 50%;
+        background: rgba(0, 0, 0, 0.18);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 22px;
+        box-shadow: 5px 5px 14px rgba(0, 0, 0, 0.22);
+        transition: transform 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+      }
+      .drop:hover .ring {
+        transform: scale(1.06) rotate(-3deg);
+      }
+      .drop.processing .ring {
+        animation: spin 1.2s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .drop .label {
+        font-size: 13px;
+        font-weight: 500;
+        margin-bottom: 2px;
+      }
+      .drop .hint {
+        font-size: 11px;
+        color: #64748b;
+      }
+      .hidden {
+        display: none !important;
+      }
+
+      /* directory tree */
+      .dir {
+        overflow-y: auto;
+        overflow-x: hidden;
+        flex: 1;
+        min-height: 0;
+      }
+      .dir::-webkit-scrollbar {
+        width: 4px;
+      }
+      .dir::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      .dir::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 2px;
+      }
+      .dir-empty {
+        font-size: 12px;
+        color: #475569;
+        text-align: center;
+        padding: 24px 12px;
+        line-height: 1.6;
+      }
+
+      .dir-root {
+        padding: 4px 0;
+      }
+      .dir-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 10px;
+        border-radius: 7px;
+        cursor: pointer;
+        transition:
+          background 0.2s,
+          color 0.2s;
+        font-size: 14px;
+        color: #94a3b8;
+        position: relative;
+      }
+      .dir-item:hover {
+        background: rgba(99, 102, 241, 0.08);
+        color: #c7d2fe;
+      }
+      .dir-item.on {
+        background: rgba(99, 102, 241, 0.12);
+        color: #fff;
+        font-weight: 500;
+      }
+      .dir-item.on::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 20%;
+        height: 60%;
+        width: 3px;
+        border-radius: 0 2px 2px 0;
+        background: linear-gradient(180deg, #6366f1, #06b6d4);
+      }
+      .dir-icon {
+        width: 18px;
+        height: 18px;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+        flex-shrink: 0;
+      }
+      .dir-icon.sheet {
+        background: rgba(99, 102, 241, 0.15);
+        color: #818cf8;
+      }
+      .dir-icon.sheet.on {
+        background: linear-gradient(135deg, #6366f1, #06b6d4);
+        color: #fff;
+      }
+      .dir-name {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .dir-badge {
+        font-size: 10px;
+        color: #475569;
+        background: rgba(255, 255, 255, 0.04);
+        padding: 1px 6px;
+        border-radius: 4px;
+        flex-shrink: 0;
+      }
+
+      /* merge toggle */
+      .merge-card {
+        padding: 14px 16px;
+        border-radius: 10px;
+        background: rgba(0, 0, 0, 0.15);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        transition: all 0.3s;
+      }
+      .merge-card.active {
+        border-color: rgba(99, 102, 241, 0.25);
+        background: rgba(99, 102, 241, 0.06);
+      }
+      .merge-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .merge-label {
+        font-size: 12px;
+        font-weight: 500;
+        color: #c7d2fe;
+      }
+      .merge-desc {
+        font-size: 11px;
+        color: #475569;
+        margin-top: 6px;
+        line-height: 1.5;
+      }
+
+      .sw {
+        width: 38px;
+        height: 20px;
+        background: rgba(255, 255, 255, 0.06);
+        border-radius: 10px;
+        cursor: pointer;
+        position: relative;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        transition: all 0.3s;
+        flex-shrink: 0;
+      }
+      .sw.on {
+        background: linear-gradient(135deg, #6366f1, #06b6d4);
+        border-color: transparent;
+        box-shadow: 0 0 12px rgba(99, 102, 241, 0.25);
+      }
+      .sw::after {
+        content: "";
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: #fff;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+        transition: transform 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+      }
+      .sw.on::after {
+        transform: translateX(18px);
+      }
+
+      /* textarea */
+      .code {
+        width: 100%;
+        flex: 1;
+        min-height: 0;
+        background: rgba(0, 0, 0, 0.18);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        padding: 12px;
+        font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+        font-size: 12px;
+        line-height: 1.6;
+        color: #e2e8f0;
+        resize: none;
+        outline: 0;
+        transition:
+          border-color 0.3s,
+          box-shadow 0.3s;
+      }
+      .code:focus {
+        border-color: #6366f1;
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.08);
+      }
+
+      .bar {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin-top: 8px;
+        flex-wrap: wrap;
+        flex-shrink: 0;
+      }
+
+      /* === BUTTONS === */
+      .btn {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 12px;
+        font-size: 13px;
+        font-weight: 600;
+        font-family: inherit;
+        cursor: pointer;
+        position: relative;
+        overflow: hidden;
+        transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        letter-spacing: 0.3px;
+        will-change: transform;
+      }
+      .btn::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(
+          135deg,
+          rgba(255, 255, 255, 0.15) 0%,
+          rgba(255, 255, 255, 0.05) 50%,
+          transparent 100%
+        );
+        opacity: 0;
+        transition: opacity 0.3s;
+        border-radius: inherit;
+      }
+      .btn:hover::before {
+        opacity: 1;
+      }
+      .btn:active {
+        transform: scale(0.96) !important;
+      }
+
+          .btn-convert {
+        background: linear-gradient(135deg, #6366f1, #06b6d4);
+        border: none;
+        color: #fff;
+        padding: 10px 20px;
+        font-size: 13px;
+        font-weight: 600;
+        border-radius: 10px;
+        cursor: pointer;
+        width: 100%;
+        transition: all 0.3s;
+        box-shadow:
+          0 4px 20px rgba(99, 102, 241, 0.35),
+          0 0 30px rgba(99, 102, 241, 0.1);
+        position: relative;
+        overflow: hidden;
+      }
+      .btn-convert::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          rgba(255, 255, 255, 0.2),
+          transparent
+        );
+        transition: left 0.5s;
+      }
+      .btn-convert:hover::before {
+        left: 100%;
+      }
+      .btn-convert:hover {
+        box-shadow:
+          0 8px 30px rgba(99, 102, 241, 0.45),
+          0 0 40px rgba(99, 102, 241, 0.18),
+          inset 0 1px 0 rgba(255, 255, 255, 0.18);
+        transform: translateY(-2px);
+      }
+      .btn-convert.merged {
+        background: linear-gradient(135deg, #f59e0b, #ef4444);
+        box-shadow:
+          0 4px 20px rgba(245, 158, 11, 0.35),
+          0 0 30px rgba(245, 158, 11, 0.1);
+      }
+      .btn-convert.merged:hover {
+        box-shadow:
+          0 8px 30px rgba(245, 158, 11, 0.45),
+          0 0 40px rgba(245, 158, 11, 0.18),
+          inset 0 1px 0 rgba(255, 255, 255, 0.18);
+      }
+      .btn-convert:hover {
+        transform: translateY(-2px);
+        box-shadow:
+          0 8px 30px rgba(99, 102, 241, 0.45),
+          0 0 40px rgba(99, 102, 241, 0.18),
+          inset 0 1px 0 rgba(255, 255, 255, 0.18);
+      }
+      .btn-convert svg {
+        width: 16px;
+        height: 16px;
+      }
+
+      .btn-group {
+        display: flex;
+        gap: 8px;
+        flex: 1;
+      }
+      .btn-group .btn {
+        flex: 1;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        color: #94a3b8;
+        box-shadow: none;
+        padding: 8px 12px;
+        font-size: 11px;
+      }
+      .btn-group .btn svg {
+        width: 14px;
+        height: 14px;
+        flex-shrink: 0;
+      }
+      .btn-group .btn.btn-md {
+        background: rgba(99, 102, 241, 0.15);
+        border-color: rgba(99, 102, 241, 0.35);
+        color: #c7d2fe;
+      }
+      .btn-group .btn.btn-md:hover {
+        background: rgba(99, 102, 241, 0.28);
+        border-color: rgba(99, 102, 241, 0.55);
+        color: #e0e7ff;
+        box-shadow: 0 0 20px rgba(99, 102, 241, 0.25);
+      }
+      .btn-group .btn.btn-copy {
+        background: rgba(16, 185, 129, 0.08);
+        border-color: rgba(16, 185, 129, 0.2);
+        color: #6ee7b7;
+      }
+      .btn-group .btn.btn-copy:hover {
+        background: rgba(16, 185, 129, 0.18);
+        border-color: rgba(16, 185, 129, 0.4);
+        color: #a7f3d0;
+        box-shadow: 0 0 16px rgba(16, 185, 129, 0.15);
+      }
+      .btn-group .btn.btn-docx {
+        background: rgba(245, 158, 11, 0.08);
+        border-color: rgba(245, 158, 11, 0.2);
+        color: #fcd34d;
+      }
+      .btn-group .btn.btn-docx:hover {
+        background: rgba(245, 158, 11, 0.18);
+        border-color: rgba(245, 158, 11, 0.4);
+        color: #fde68a;
+        box-shadow: 0 0 16px rgba(245, 158, 11, 0.15);
+      }
+
+      .toast {
+        padding: 7px 14px;
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 500;
+        animation: tin 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+      }
+      .to {
+        background: rgba(16, 185, 129, 0.12);
+        color: #34d399;
+        border: 1px solid rgba(16, 185, 129, 0.18);
+      }
+      .te {
+        background: rgba(239, 68, 68, 0.12);
+        color: #f87171;
+        border: 1px solid rgba(239, 68, 68, 0.18);
+      }
+      .ti {
+        background: rgba(99, 102, 241, 0.1);
+        color: #a5b4fc;
+        border: 1px solid rgba(99, 102, 241, 0.18);
+      }
+      @keyframes tin {
+        from {
+          opacity: 0;
+          transform: translateY(4px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .ni {
+        padding: 6px 10px;
+        background: rgba(0, 0, 0, 0.18);
+        border: 1px solid rgba(255, 255, 255, 0.07);
+        border-radius: 7px;
+        color: #e2e8f0;
+        font-size: 11px;
+        font-family: inherit;
+        outline: 0;
+        transition:
+          border-color 0.3s,
+          box-shadow 0.3s;
+        width: 100%;
+      }
+      .ni:focus {
+        border-color: #6366f1;
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+      }
+      .ir {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin-top: 8px;
+      }
+      .ir label {
+        font-size: 11px;
+        color: #64748b;
+        white-space: nowrap;
+        min-width: 42px;
+      }
+      .sp {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border: 2px solid rgba(255, 255, 255, 0.25);
+        border-top-color: #fff;
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+        vertical-align: middle;
+        margin-right: 4px;
+      }
+      .footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 0 0;
+        font-size: 11px;
+        color: #64748b;
+        letter-spacing: 0.5px;
+        flex-shrink: 0;
+      }
+      .theme-btn {
+        background: rgba(255,255,255,0.06);
+        border: 1px solid rgba(255,255,255,0.08);
+        color: #94a3b8;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 11px;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .theme-btn:hover {
+        background: rgba(255,255,255,0.12);
+        color: #e2e8f0;
+      }
+
+      /* error panel */
+      .error-panel {
+        margin-top: 8px;
+        padding: 10px 14px;
+        background: rgba(239, 68, 68, 0.08);
+        border: 1px solid rgba(239, 68, 68, 0.2);
+        border-radius: 8px;
+        color: #fca5a5;
+        font-size: 12px;
+        line-height: 1.6;
+        display: none;
+      }
+      .error-panel.show {
+        display: block;
+        animation: tin 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+      }
+      .error-panel .err-title {
+        font-weight: 600;
+        color: #f87171;
+        margin-bottom: 4px;
+      }
+      .error-panel .err-detail {
+        color: #fca5a5;
+        opacity: 0.8;
+      }
+
+      /* light theme */
+      body.light {
+        background: linear-gradient(135deg, #eef2ff 0%, #f0fdfa 50%, #fdf4ff 100%);
+        color: #1e293b;
+      }
+      body.light .bg {
+        background:
+          radial-gradient(ellipse 80% 50% at 10% 15%, rgba(99,102,241,0.12), transparent 55%),
+          radial-gradient(ellipse 60% 70% at 90% 85%, rgba(6,182,212,0.1), transparent 55%),
+          radial-gradient(ellipse 40% 40% at 50% 50%, rgba(139,92,246,0.06), transparent 60%);
+      }
+      body.light .wm { display: none; }
+      body.light .gl {
+        background: rgba(255,255,255,0.85);
+        border-color: rgba(0,0,0,0.06);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+      }
+      body.light .gh { border-bottom-color: rgba(0,0,0,0.05); }
+      body.light .gh h2 { color: #1e293b; }
+      body.light .drop {
+        border-color: rgba(0,0,0,0.1);
+        background: rgba(0,0,0,0.02);
+      }
+      body.light .drop:hover { border-color: rgba(99,102,241,0.3); background: rgba(99,102,241,0.03); }
+      body.light .drop.dragover { border-color: rgba(6,182,212,0.5); background: rgba(6,182,212,0.04); }
+      body.light .drop.processing { border-color: rgba(99,102,241,0.4); }
+      body.light .ring { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.06); }
+      body.light .code {
+        background: rgba(0,0,0,0.03);
+        border-color: rgba(0,0,0,0.08);
+        color: #1e293b;
+      }
+      body.light .dir-item { color: #64748b; }
+      body.light .dir-item:hover { background: rgba(99,102,241,0.06); color: #4f46e5; }
+      body.light .dir-badge { background: rgba(0,0,0,0.04); color: #94a3b8; }
+      body.light .ni {
+        background: rgba(0,0,0,0.03);
+        border-color: rgba(0,0,0,0.08);
+        color: #1e293b;
+      }
+      body.light .file-strip {
+        background: rgba(99,102,241,0.04);
+        border-color: rgba(99,102,241,0.12);
+      }
+      body.light .file-strip .name { color: #4f46e5; }
+      body.light .file-strip .close { color: #94a3b8; }
+      body.light .file-strip .close:hover { background: rgba(239,68,68,0.1); color: #ef4444; }
+      body.light .btn-group .btn { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.08); color: #64748b; }
+      body.light .btn-group .btn.btn-md { background: rgba(99,102,241,0.06); border-color: rgba(99,102,241,0.2); color: #4f46e5; }
+      body.light .btn-group .btn.btn-copy { background: rgba(16,185,129,0.06); border-color: rgba(16,185,129,0.2); color: #059669; }
+      body.light .btn-group .btn.btn-docx { background: rgba(245,158,11,0.06); border-color: rgba(245,158,11,0.2); color: #d97706; }
+      body.light .btn-group .btn.btn-md:hover { background: rgba(99,102,241,0.12); border-color: rgba(99,102,241,0.35); }
+      body.light .btn-group .btn.btn-copy:hover { background: rgba(16,185,129,0.12); border-color: rgba(16,185,129,0.35); }
+      body.light .btn-group .btn.btn-docx:hover { background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.35); }
+      body.light .footer { color: #64748b; }
+      body.light .theme-btn { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.08); color: #64748b; }
+      body.light .theme-btn:hover { background: rgba(0,0,0,0.08); color: #1e293b; }
+      body.light .ab { opacity: 0.3; }
+      body.light .error-panel { background: rgba(239,68,68,0.05); border-color: rgba(239,68,68,0.15); color: #b91c1c; }
+      body.light .error-panel .err-title { color: #dc2626; }
+      body.light .progress-wrap { background: rgba(0,0,0,0.05); }
+
+      .file-strip {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 12px;
+        border-radius: 7px;
+        background: rgba(99, 102, 241, 0.06);
+        border: 1px solid rgba(99, 102, 241, 0.12);
+        margin-top: 8px;
+      }
+      .file-strip .icon {
+        font-size: 12px;
+      }
+      .file-strip .name {
+        font-size: 12px;
+        font-weight: 500;
+        color: #c7d2fe;
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .file-strip .close {
+        font-size: 11px;
+        color: #64748b;
+        cursor: pointer;
+        padding: 2px 6px;
+        border-radius: 4px;
+        transition: all 0.2s;
+      }
+      .file-strip .close:hover {
+        background: rgba(239, 68, 68, 0.15);
+        color: #f87171;
+      }
+      .github-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 12px;
+        padding: 6px 14px;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 20px;
+        color: #e2e8f0;
+        font-size: 12px;
+        font-weight: 500;
+        text-decoration: none;
+        transition: all 0.2s;
+        backdrop-filter: blur(10px);
+      }
+      .github-link:hover {
+        background: rgba(255, 255, 255, 0.15);
+        border-color: rgba(99, 102, 241, 0.5);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+      }
+      .github-link svg {
+        opacity: 0.8;
+      }
+    </style>
+  </head>
+    <body class="light">
+    <div class="bg"></div>
+    <div class="mg" id="mg"></div>
+    <div class="ab ab1"></div>
+    <div class="ab ab2"></div>
+    <div class="ab ab3"></div>
+
+    <div class="wrap">
+      <div class="gl hdr-card" style="animation-delay: 0s">
+        <div class="hdr">
+          <div class="hdr-icon">&#9889;</div>
+          <div class="hdr-text">
+            <h1>DCS Converter</h1>
+            <p>Excel 试验条件表 → Markdown</p>
+          </div>
+          <button class="theme-btn" id="themeBtn" onclick="toggleTheme()" style="margin-left: auto;">&#9789; 暗色</button>
+        </div>
+      </div>
+
+      <div class="main-layout">
+        <div class="sidebar">
+          <div class="gl" style="animation-delay: 0.05s">
+            <div class="gh">
+              <div class="gi">&#128194;</div>
+              <h2>导入</h2>
+            </div>
+            <div class="gb">
+              <div id="dz" class="drop">
+                <div class="ring">&#128228;</div>
+                <div class="label" id="ulbl">点击或拖拽 Excel</div>
+                <div class="hint">.xlsx / .xls</div>
+              </div>
+              <div class="progress-wrap" id="progressWrap">
+                <div class="progress-bar" id="progressBar"></div>
+              </div>
+              <div class="error-panel" id="errorPanel">
+                <div class="err-title" id="errTitle"></div>
+                <div class="err-detail" id="errDetail"></div>
+              </div>
+              <input
+                type="file"
+                id="fi"
+                accept=".xlsx,.xls"
+                style="display: none"
+              />
+              <div id="fileStrip" class="file-strip hidden">
+                <span class="icon">&#128196;</span>
+                <span class="name" id="fn"></span>
+                <span class="close" id="fc">&#10005;</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="gl" style="animation-delay: 0.1s; flex: 1; min-height: 0">
+            <div class="gh">
+              <div class="gi">&#128193;</div>
+              <h2>Sheet 目录</h2>
+            </div>
+            <div
+              class="gb"
+              style="padding: 6px 10px; display: flex; flex-direction: column"
+            >
+              <div class="dir" id="dirTree">
+                <div class="dir-empty" id="dirEmpty">导入文件后显示目录</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="gl" style="animation-delay: 0.15s">
+            <div class="gb" style="padding: 14px 16px">
+              <div class="ir" style="margin-top: 10px">
+                <label>输出名</label
+                ><input class="ni" type="text" id="on2" value="output.md" />
+              </div>
+              <div style="margin-top: 12px">
+                <button class="btn btn-convert" id="ba">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                  </svg>
+                  <span id="baText">全部转换</span>
+                  <span id="baStatus" style="font-size: 10px; opacity: 0.7; margin-left: 4px;">[单Sheet]</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="main-content">
+          <div
+            class="gl"
+            style="animation-delay: 0.08s; flex: 1; min-height: 0"
+          >
+            <div class="gh">
+              <div class="gi">&#128195;</div>
+              <h2>转换结果</h2>
+              <span
+                id="lineCount"
+                style="margin-left: auto; font-size: 11px; color: #475569"
+              ></span>
+              <div id="tst" class="hidden" style="margin-left: 8px;"></div>
+            </div>
+            <div class="gb" style="display: flex; flex-direction: column">
+              <textarea
+                class="code"
+                id="mo"
+                readonly
+                placeholder="转换结果将显示在这里..."
+              ></textarea>
+              <div class="bar">
+                <div class="btn-group">
+                  <button class="btn btn-md" id="bd">
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="7 10 12 15 17 10" />
+                      <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                    .md
+                  </button>
+                  <button class="btn btn-copy" id="bc">
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                      <path
+                        d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
+                      />
+                    </svg>
+                    复制
+                  </button>
+                  <button class="btn btn-docx" id="bw">
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                      <polyline points="14 2 14 8 20 8" />
+                      <line x1="16" y1="13" x2="8" y2="13" />
+                      <line x1="16" y1="17" x2="8" y2="17" />
+                      <polyline points="10 9 9 9 8 9" />
+                    </svg>
+                    .docx
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer" style="justify-content: center;">
+        <span>DCS试验表转换工具 v3.0 · <a href="https://github.com/ZJHAO233/DCS-Converter" target="_blank" style="color: inherit; text-decoration: underline;">GitHub</a></span>
+      </div>
+    </div>
+
+    <script src="xlsx.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html-docx-js@0.3.1/dist/html-docx.min.js"></script>
+    <script>
+      (function () {
+        var wb = null,
+          merged = false,
+          originalFileName = "output";
+
+        /* === watermarks === */
+        function initWM() {
+          var c = document.querySelector(".bg");
+          var sz = [20, 28, 38, 50, 64];
+          var cols = 10,
+            rows = Math.ceil(((cols * innerHeight) / innerWidth) * 1.2);
+          var gw = innerWidth / cols,
+            gh = innerHeight / rows;
+          for (var r = 0; r < rows; r++)
+            for (var cl = 0; cl < cols; cl++) {
+              if (Math.random() > 0.88) continue;
+              var el = document.createElement("div");
+              el.className = "wm";
+              el.textContent = atob("WkpIQU8=");
+              var s = sz[Math.floor(Math.random() * sz.length)];
+              var rot = Math.floor(Math.random() * 5) * 36 - 72;
+              var x = cl * gw + Math.random() * gw * 0.55 - gw * 0.05;
+              var y = r * gh + Math.random() * gh * 0.55 - gh * 0.05;
+              var op = 0.03 + Math.random() * 0.04;
+              var dur = 2 + Math.random() * 4,
+                delay = Math.random() * 3;
+              var dur2 = 5 + Math.random() * 8,
+                delay2 = Math.random() * 4;
+              var dx = Math.floor(Math.random() * 60) - 30,
+                dy = Math.floor(Math.random() * 60) - 30;
+              el.style.cssText =
+                "left:" +
+                x +
+                "px;top:" +
+                y +
+                "px;font-size:" +
+                s +
+                "px;--rot:rotate(" +
+                rot +
+                "deg);color:rgba(255,255,255," +
+                op +
+                ");--dur:" +
+                dur +
+                "s;--delay:-" +
+                delay +
+                "s;--dur2:" +
+                dur2 +
+                "s;--delay2:-" +
+                delay2 +
+                "s;--dx:" +
+                dx +
+                "px;--dy:" +
+                dy +
+                "px";
+              c.appendChild(el);
+            }
+        }
+
+        /* === main === */
+        function init() {
+          initWM();
+          var dz = document.getElementById("dz"),
+            fi = document.getElementById("fi");
+          dz.onclick = function () {
+            if (typeof XLSX === "undefined") {
+              toast("解析库加载失败", "te");
+              return;
+            }
+            fi.click();
+          };
+          dz.ondragover = function (e) {
+            e.preventDefault();
+            dz.className = "drop dragover";
+          };
+          dz.ondragleave = function () {
+            dz.className = "drop";
+          };
+          dz.ondrop = function (e) {
+            e.preventDefault();
+            dz.className = "drop";
+            if (e.dataTransfer.files.length) load(e.dataTransfer.files[0]);
+          };
+          fi.onchange = function (e) {
+            if (e.target.files.length) load(e.target.files[0]);
+          };
+          document.getElementById("ba").onclick = function() {
+            merged = !merged;
+            var btn = document.getElementById("ba");
+            var text = document.getElementById("baText");
+            var status = document.getElementById("baStatus");
+            if (merged) {
+              btn.classList.add("merged");
+              text.textContent = "合并转换";
+              status.textContent = "[合并]";
+            } else {
+              btn.classList.remove("merged");
+              text.textContent = "全部转换";
+              status.textContent = "[单Sheet]";
+            }
+            convertAll();
+          };
+          document.getElementById("bd").onclick = download;
+          document.getElementById("bc").onclick = copyMd;
+          document.getElementById("bw").onclick = downloadWord;
+        }
+
+        function load(f) {
+          var dz = document.getElementById("dz");
+          var pw = document.getElementById("progressWrap");
+          var pb = document.getElementById("progressBar");
+          var ep = document.getElementById("errorPanel");
+          ep.className = "error-panel";
+          dz.className = "drop processing";
+          document.getElementById("ulbl").innerHTML =
+            '<span class="sp"></span>解析中...';
+          pw.classList.add("active");
+          pb.style.width = "0%";
+          var progress = 0;
+          var timer = setInterval(function() {
+            progress += Math.random() * 15 + 5;
+            if (progress > 90) progress = 90;
+            pb.style.width = progress + "%";
+          }, 100);
+          var rd = new FileReader();
+          rd.onload = function (e) {
+            clearInterval(timer);
+            pb.style.width = "100%";
+            setTimeout(function() {
+              pw.classList.remove("active");
+              pb.style.width = "0%";
+            }, 400);
+            try {
+              wb = XLSX.read(e.target.result, { type: "array" });
+              originalFileName = f.name.replace(/\.[^.]+$/, "") || "output";
+              document.getElementById("fn").textContent = f.name;
+              document.getElementById("fileStrip").className = "file-strip";
+              document.getElementById("ulbl").textContent = "\u2713 选择完成";
+              dz.className = "drop";
+              buildDir();
+              pick(0);
+            } catch (err) {
+              document.getElementById("ulbl").textContent =
+                "解析失败，点击重试";
+              document.getElementById("fileStrip").className =
+                "file-strip hidden";
+              dz.className = "drop";
+              var errTitle = "文件解析失败";
+              var errDetail = "";
+              if (err.message.includes("Unsupported")) {
+                errDetail = "不支持的文件格式，请确认文件为 .xlsx 或 .xls 格式";
+              } else if (err.message.includes("password")) {
+                errDetail = "文件已加密，请先解除密码保护";
+              } else if (err.message.includes("broken") || err.message.includes("corrupt")) {
+                errDetail = "文件可能已损坏，请检查文件完整性";
+              } else {
+                errDetail = "错误详情: " + err.message;
+              }
+              document.getElementById("errTitle").textContent = errTitle;
+              document.getElementById("errDetail").textContent = errDetail;
+              ep.className = "error-panel show";
+              toast("读取失败: " + err.message, "te");
+            }
+          };
+          rd.readAsArrayBuffer(f);
+        }
+
+        function buildDir() {
+          var tree = document.getElementById("dirTree");
+          tree.innerHTML = "";
+          wb.SheetNames.forEach(function (n, i) {
+            var item = document.createElement("div");
+            item.className = "dir-item" + (i === 0 ? " on" : "");
+            item.setAttribute("data-i", i);
+            item.innerHTML =
+              '<div class="dir-icon sheet' +
+              (i === 0 ? " on" : "") +
+              '">&#128196;</div><span class="dir-name">' +
+              n +
+              '</span><span class="dir-badge" id="badge' +
+              i +
+              '">-</span>';
+            item.onclick = function () {
+              pick(i);
+            };
+            tree.appendChild(item);
+          });
+        }
+
+        function pick(i) {
+          var items = document.querySelectorAll(".dir-item");
+          for (var j = 0; j < items.length; j++) {
+            items[j].className = "dir-item" + (j === i ? " on" : "");
+            items[j].querySelector(".dir-icon").className =
+              "dir-icon sheet" + (j === i ? " on" : "");
+          }
+          var md = conv(i);
+          document.getElementById("mo").value = md;
+          document.getElementById("on2").value = wb.SheetNames[i] + ".md";
+          var lines = md.split("\n").length;
+          document.getElementById("badge" + i).textContent = lines + "L";
+          document.getElementById("lineCount").textContent =
+            wb.SheetNames[i] + " · " + lines + " 行";
+          toast("已转换: " + wb.SheetNames[i], "ti");
+        }
+
+        function conv(si) {
+          var s = wb.Sheets[wb.SheetNames[si]],
+            rng = XLSX.utils.decode_range(s["!ref"]),
+            rows = [];
+          for (var r = rng.s.r; r <= rng.e.r; r++) {
+            var row = [];
+            for (var c = rng.s.c; c <= Math.min(rng.e.c, 11); c++) {
+              var cl = s[XLSX.utils.encode_cell({ r: r, c: c })];
+              row.push(cl ? String(cl.v).trim() : "");
+            }
+            rows.push(row);
+          }
+          return proc(rows);
+        }
+
+        function proc(rows) {
+          var out = [],
+            ic = false,
+            gi = 0,
+            titleLogic = null,
+            groupItems = [],
+            allGroups = [];
+          function isL(t) {
+            return t === "\u4E0E" || t === "\u6216";
+          }
+          function lS(t) {
+            return t === "\u4E0E" ? "\u4E14" : t === "\u6216" ? "\u6216" : null;
+          }
+          function findSeparatorAndContent(row) {
+            var cells = row.slice(0, 5);
+            var sepCol = -1;
+            var sep = null;
+            for (var i = 0; i < cells.length; i++) {
+              if (isL(cells[i])) {
+                sepCol = i;
+                sep = lS(cells[i]);
+                break;
+              }
+            }
+            var content = null;
+            for (var i = cells.length - 1; i >= 0; i--) {
+              if (cells[i] && !isL(cells[i])) {
+                content = cells[i];
+                break;
+              }
+            }
+            return { sepCol: sepCol, sep: sep, content: content };
+          }
+          function buildNestedExpression(items, seps) {
+            if (items.length === 0) return "";
+            if (items.length === 1) return items[0];
+            var maxDepth = 0;
+            var depthMap = {};
+            for (var i = 0; i < seps.length; i++) {
+              var d = seps[i].depth;
+              if (d > maxDepth) maxDepth = d;
+              if (!depthMap[d]) depthMap[d] = [];
+              depthMap[d].push({ index: i, sep: seps[i].sep });
+            }
+            var result = items.slice();
+            for (var d = maxDepth; d >= 1; d--) {
+              var groups = depthMap[d];
+              if (!groups || groups.length === 0) continue;
+              var newResult = [];
+              var i = 0;
+              while (i < result.length) {
+                var foundGroup = false;
+                for (var g = 0; g < groups.length; g++) {
+                  var idx = groups[g].index;
+                  if (i === idx) {
+                    var left = result[i];
+                    var right = result[i + 1];
+                    var combined = "(" + left + groups[g].sep + right + ")";
+                    newResult.push(combined);
+                    i += 2;
+                    foundGroup = true;
+                    break;
+                  }
+                }
+                if (!foundGroup) {
+                  newResult.push(result[i]);
+                  i++;
+                }
+              }
+              result = newResult;
+            }
+            return result.join(seps.length > 0 ? seps[0].sep : "\u4E14");
+          }
+          function flushGroup() {
+            if (groupItems.length === 0) return;
+            var expr = buildNestedExpression(
+              groupItems.map(function(x) { return x.content; }),
+              groupItems.map(function(x) { return { depth: x.depth, sep: x.sep }; })
+            );
+            allGroups.push(expr);
+            groupItems = [];
+          }
+          function emit() {
+            flushGroup();
+            if (allGroups.length === 0) return;
+            allGroups.forEach(function(g) {
+              out.push("- " + g);
+            });
+            allGroups = [];
+            titleLogic = null;
+          }
+          for (var r = 0; r < rows.length; r++) {
+            var row = [];
+            for (var c = 0; c < 5; c++) {
+              row.push((rows[r][c] || "").trim());
+            }
+            var a = row[0], b = row[1], c = row[2], d = row[3], e = row[4];
+            if (/^[一二三四五六七八九十]+、/.test(a)) {
+              emit();
+              out.push("");
+              out.push("## " + a);
+              out.push("");
+              ic = false;
+              gi = 0;
+              continue;
+            }
+            if (a === "\u8BD5\u9A8C\u5185\u5BB9") {
+              ic = true;
+              continue;
+            }
+            if (
+              a === "\u8BD5\u9A8C\u6761\u4EF6" ||
+              a === "\u8BD5\u9A8C\u6062\u590D" ||
+              a === "\u7ED3\u8BBA" ||
+              a === "\u5B58\u5728\u95EE\u9898"
+            ) {
+              emit();
+              ic = false;
+              continue;
+            }
+            if (/^\d+\./.test(a)) {
+              emit();
+              gi++;
+              var tc = a
+                .replace("\u3008\u4E0E\u3009", "")
+                .replace("\u3008\u6216\u3009", "");
+              if (a.indexOf("\u3008\u4E0E\u3009") > -1) {
+                out.push("### " + gi + "." + tc + "\u3008\u4E0E\u3009");
+                titleLogic = "\u4E14";
+              } else if (a.indexOf("\u3008\u6216\u3009") > -1) {
+                out.push("### " + gi + "." + tc + "\u3008\u6216\u3009");
+                titleLogic = "\u6216";
+              } else {
+                out.push("### " + gi + "." + tc);
+              }
+              out.push("");
+              continue;
+            }
+            if (ic && gi > 0) {
+              if (a === "\u5E8F\u53F7" || a === "\u6761\u4EF6\u5185\u5BB9")
+                continue;
+              var info = findSeparatorAndContent(row);
+              if (/^\d+$/.test(a)) {
+                flushGroup();
+                var depth = info.sepCol > 1 ? info.sepCol - 1 : 0;
+                if (info.content) {
+                  groupItems.push({
+                    content: info.content,
+                    sep: info.sep || titleLogic || "\u4E14",
+                    depth: depth
+                  });
+                }
+              } else if (info.sep) {
+                if (groupItems.length > 0) {
+                  var lastDepth = groupItems[groupItems.length - 1].depth;
+                  var newDepth = info.sepCol > 1 ? info.sepCol - 1 : lastDepth + 1;
+                  if (info.content) {
+                    groupItems.push({
+                      content: info.content,
+                      sep: info.sep,
+                      depth: newDepth
+                    });
+                  }
+                } else {
+                  var depth = info.sepCol > 1 ? info.sepCol - 1 : 0;
+                  if (info.content) {
+                    groupItems.push({
+                      content: info.content,
+                      sep: info.sep,
+                      depth: depth
+                    });
+                  }
+                }
+              } else if (info.content) {
+                var lastItem = groupItems.length > 0 ? groupItems[groupItems.length - 1] : null;
+                var depth = lastItem ? lastItem.depth : 0;
+                groupItems.push({
+                  content: info.content,
+                  sep: lastItem ? lastItem.sep : (titleLogic || "\u4E14"),
+                  depth: depth
+                });
+              }
+            }
+          }
+          emit();
+          return out.join("\n");
+        }
+
+        function convertAll() {
+          if (!wb) return;
+          var md = "";
+          wb.SheetNames.forEach(function (n, i) {
+            var r = conv(i);
+            if (r.trim()) {
+              if (merged) md += "# " + n + "\n\n" + r + "\n\n---\n\n";
+              else md += r + "\n\n---\n\n";
+            }
+          });
+          document.getElementById("mo").value = md;
+          if (merged) {
+            document.getElementById("on2").value = originalFileName + ".md";
+          }
+          document.getElementById("lineCount").textContent =
+            "全部 · " + wb.SheetNames.length + " 个Sheet";
+          toast(
+            merged
+              ? "已合并全部 " + wb.SheetNames.length + " 个Sheet"
+              : "已转换全部 " + wb.SheetNames.length + " 个Sheet",
+            "to",
+          );
+        }
+
+        function download() {
+          var c = document.getElementById("mo").value;
+          if (!c) {
+            toast("没有内容", "te");
+            return;
+          }
+          var n = document.getElementById("on2").value || "output.md";
+          var b = new Blob([c], { type: "text/markdown;charset=utf-8" });
+          var a = document.createElement("a");
+          a.href = URL.createObjectURL(b);
+          a.download = n;
+          a.click();
+          URL.revokeObjectURL(a.href);
+          toast("已下载 " + n, "to");
+        }
+        function copyMd() {
+          var t = document.getElementById("mo");
+          t.select();
+          document.execCommand("copy");
+          toast("已复制", "to");
+        }
+        function downloadWord() {
+          var c = document.getElementById("mo").value;
+          if (!c) {
+            toast("没有内容", "te");
+            return;
+          }
+          var fileName;
+          if (merged && wb) {
+            fileName = originalFileName;
+          } else {
+            var items = document.querySelectorAll(".dir-item.on .dir-name");
+            fileName = items.length > 0 ? items[0].textContent : "output";
+          }
+          var html = mdToHtml(c);
+          var fullHtml = '<html><head><meta charset="utf-8"></head><body style="font-family: SimSun, serif; font-size: 12pt;">' + html + '</body></html>';
+          try {
+            if (window.htmlDocx && window.htmlDocx.asBlob) {
+              var blob = window.htmlDocx.asBlob(fullHtml);
+              var a = document.createElement("a");
+              a.href = URL.createObjectURL(blob);
+              a.download = fileName + ".docx";
+              a.click();
+              URL.revokeObjectURL(a.href);
+              toast("已下载 " + fileName + ".docx", "to");
+            } else {
+              var blob = new Blob([fullHtml], { type: "application/msword" });
+              var a = document.createElement("a");
+              a.href = URL.createObjectURL(blob);
+              a.download = fileName + ".doc";
+              a.click();
+              URL.revokeObjectURL(a.href);
+              toast("已下载 " + fileName + ".doc", "to");
+            }
+          } catch (e) {
+            toast("Word导出失败: " + e.message, "te");
+          }
+        }
+        function mdToHtml(md) {
+          var lines = md.split("\n");
+          var html = [];
+          var inList = false;
+          for (var i = 0; i < lines.length; i++) {
+            var line = lines[i];
+            if (line.match(/^### /)) {
+              if (inList) { html.push("</ul>"); inList = false; }
+              html.push("<h3>" + escapeHtml(line.replace(/^### /, "")) + "</h3>");
+            } else if (line.match(/^## /)) {
+              if (inList) { html.push("</ul>"); inList = false; }
+              html.push("<h2>" + escapeHtml(line.replace(/^## /, "")) + "</h2>");
+            } else if (line.match(/^# /)) {
+              if (inList) { html.push("</ul>"); inList = false; }
+              html.push("<h1>" + escapeHtml(line.replace(/^# /, "")) + "</h1>");
+            } else if (line.match(/^- /)) {
+              if (!inList) { html.push("<ul>"); inList = true; }
+              var content = line.replace(/^- /, "");
+              content = escapeHtml(content);
+              content = content.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+              html.push("<li>" + content + "</li>");
+            } else if (line.match(/^---$/)) {
+              if (inList) { html.push("</ul>"); inList = false; }
+              html.push("<hr>");
+            } else if (line.trim() === "") {
+              if (inList) { html.push("</ul>"); inList = false; }
+            } else {
+              if (inList) { html.push("</ul>"); inList = false; }
+              html.push("<p>" + escapeHtml(line) + "</p>");
+            }
+          }
+          if (inList) html.push("</ul>");
+          return html.join("\n");
+        }
+        function escapeHtml(text) {
+          var div = document.createElement("div");
+          div.appendChild(document.createTextNode(text));
+          return div.innerHTML;
+        }
+        function toast(msg, type) {
+          var el = document.getElementById("tst");
+          el.innerHTML = msg;
+          el.className = "toast " + type;
+          clearTimeout(el._t);
+          el._t = setTimeout(function () {
+            el.className = "hidden";
+          }, 3500);
+        }
+
+        document.readyState === "loading"
+          ? document.addEventListener("DOMContentLoaded", init)
+          : init();
+      })();
+      function toggleTheme() {
+        var btn = document.getElementById("themeBtn");
+        var isLight = document.body.classList.toggle("light");
+        if (isLight) {
+          btn.innerHTML = "&#9789; 暗色";
+          localStorage.setItem("dcs-theme", "light");
+        } else {
+          btn.innerHTML = "&#9788; 亮色";
+          localStorage.setItem("dcs-theme", "dark");
+        }
+      }
+      (function() {
+        var saved = localStorage.getItem("dcs-theme");
+        if (saved === "dark") {
+          document.body.classList.remove("light");
+          document.getElementById("themeBtn").innerHTML = "&#9788; 亮色";
+        }
+      })();
+    </script>
+  </body>
+</html>
