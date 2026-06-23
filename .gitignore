@@ -9,6 +9,7 @@
 !*.ps1
 !*.md
 !*.js
+!*.jpg
 
 # 4. 保留 .gitignore 文件本身
 !.gitignore
