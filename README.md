@@ -119,8 +119,18 @@ DCS-Converter/
 ├── dcs_converter.html    # 主程序（单文件应用）
 ├── xlsx.min.js           # SheetJS Excel 解析库
 ├── server.ps1            # 本地 HTTP 服务器
+├── read_sheet.ps1        # Excel 调试读取脚本
 └── README.md
 ```
+
+### 文件说明
+
+| 文件 | 说明 |
+|------|------|
+| `dcs_converter.html` | 主程序，单文件应用，包含全部 HTML/CSS/JS 代码，支持拖拽导入、智能转换、多格式导出、主题切换等功能 |
+| `xlsx.min.js` | [SheetJS](https://sheetjs.com/) 库的压缩版，用于在浏览器中解析 Excel 文件（.xlsx/.xls），支持读取单元格数据、Sheet 名称、合并单元格等 |
+| `server.ps1` | 本地 HTTP 服务器脚本（PowerShell 5.1+），监听 `localhost:18888`，将当前目录作为静态资源提供，启动后自动打开浏览器 |
+| `read_sheet.ps1` | 开发调试脚本，通过 COM 对象调用本地 Excel 应用程序，读取指定 Sheet 的特定行范围数据，用于检查 Excel 数据结构 |
 
 ---
 
