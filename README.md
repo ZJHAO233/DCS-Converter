@@ -1,97 +1,124 @@
+<div align="center">
+
 # DCS Converter
 
-Excel 试验条件表 → Markdown / Word 转换工具
+**Excel 试验条件表 → Markdown / Word 智能转换工具**
 
-## 功能简介
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![HTML](https://img.shields.io/badge/HTML5-E34F26?style=flat&logo=html5&logoColor=white)]()
+[![CSS](https://img.shields.io/badge/CSS3-1572B6?style=flat&logo=css3&logoColor=white)]()
+[![JS](https://img.shields.io/badge/JavaScript-F7DF1E?style=flat&logo=javascript&logoColor=black)]()
 
-将 DCS（分散控制系统）的试验条件 Excel 表格自动转换为结构清晰的 Markdown 文档，支持多层级逻辑条件的智能格式化，并可导出为 Word (.docx) 文件。
+将 DCS 分散控制系统的试验条件 Excel 表格，一键转换为结构清晰的 Markdown 文档或 Word 文件。
 
-### 核心特性
+[快速开始](#快速开始) · [功能特性](#功能特性) · [转换示例](#转换示例) · [Excel 格式要求](#excel-格式要求)
 
-- **拖拽/点击导入** — 支持 `.xlsx` / `.xls` 格式，带加载进度条
-- **多 Sheet 预览** — 左侧目录树一键切换，自动更新文件名
-- **智能层级识别** — 根据序号自动分组，支持三层嵌套逻辑条件
-- **合并/单Sheet转换** — 按钮切换模式，自动适配文件名
-- **多格式导出** — 支持下载 `.md`、复制 Markdown、下载 `.docx`（Word）
-- **主题切换** — 暗色/亮色主题，偏好自动保存
-- **错误提示** — 解析失败时显示详细原因（格式错误、加密、损坏等）
+</div>
 
-### 条件层级格式化规则
-
-| 层级 | 格式 | 示例 |
-|------|------|------|
-| Level 1（单条件） | 每项单独一行 | `- 条件1` |
-| Level 2（两层逻辑） | 同组条件用"且"连接 | `- 条件1且条件2或条件3且条件4` |
-| Level 3（三层逻辑） | 括号包裹嵌套组 | `- 条件1且（条件2或条件3）` |
+---
 
 ## 快速开始
 
-### 方式一：本地服务器（推荐）
+### 1. 启动服务
 
 ```bash
-# 需要 PowerShell 5.1+
+# PowerShell 5.1+
 .\server.ps1
 ```
 
 浏览器自动打开 `http://localhost:18888/`
 
-### 方式二：直接打开
+### 2. 上传 Excel
 
-双击 `dcs_converter.html` 在浏览器中打开（需联网加载 xlsx 解析库）
+拖拽或点击上传区域导入 `.xlsx` / `.xls` 文件
 
-## 文件说明
+### 3. 转换导出
 
-| 文件 | 说明 |
-|------|------|
-| `dcs_converter.html` | 主程序（单文件应用） |
-| `xlsx.min.js` | SheetJS 解析库 |
-| `server.ps1` | 本地 HTTP 服务器脚本 |
-| `mimo.exe` | 预编译可执行文件 |
+选择 Sheet → 点击转换 → 下载 `.md` / `.docx` 或复制内容
 
-## Excel 表格格式要求
+---
 
-程序按以下列结构解析数据：
+## 功能特性
 
-| A列 | B列 | C列 | D列 | E列 |
-|-----|-----|-----|-----|-----|
-| 序号 | 分隔符/条件 | 分隔符/条件 | 条件 | 条件 |
+<table>
+<tr>
+<td width="50%">
 
-- **分隔符**：`与`（AND）或 `或`（OR）
-- **A列**：条目序号（如 `1`、`2`）
-- **子标题**：以 `一、` `二、` 等开头的行作为 `##` 标题
-- **分组标题**：以 `数字.` 开头的行作为 `###` 标题，尾部 `（与）` 或 `（或）` 决定组间逻辑
+**导入**
+- 拖拽 / 点击上传
+- 支持 `.xlsx` / `.xls`
+- 解析进度条显示
+- 错误原因详细提示
 
-### 示例
+</td>
+<td width="50%">
 
-| A | B | C | D |
-|---|---|---|---|
-| 1.自动开条件(与) | | | |
+**导出**
+- 下载 Markdown 文件
+- 一键复制到剪贴板
+- 下载 Word (.docx) 文件
+- 自动命名（按 Sheet 名）
+
+</td>
+</tr>
+<tr>
+<td>
+
+**智能转换**
+- 按序号自动分组
+- 三层嵌套逻辑识别
+- 括号自动包裹
+- 标题逻辑自动推断
+
+</td>
+<td>
+
+**界面**
+- 暗色 / 亮色主题切换
+- 多 Sheet 目录切换
+- 合并 / 单 Sheet 模式
+- 偏好自动保存
+
+</td>
+</tr>
+</table>
+
+---
+
+## 转换示例
+
+### 基础转换
+
+**Excel 输入：**
+
 | 序号 | 条件内容 | | |
+|------|----------|--|--|
 | 1 | 输煤急停（取反） | | |
 | 2 | 或 | 输煤联锁模式 | |
 | | 与 | 输煤自动模式 | |
 
-转换结果：
+**Markdown 输出：**
 
 ```markdown
-### 1.自动开条件(与)
+### 1.启动允许条件（与）
 
 - 输煤急停（取反）
 - 输煤联锁模式且输煤自动模式
 ```
 
-### 三层嵌套示例
+### 三层嵌套
 
-| A | B | C | D | E |
-|---|---|---|---|---|
-| 1.自动启条件(与) | | | | |
+**Excel 输入：**
+
+| 序号 | | 条件内容 | | |
+|------|-|----------|--|--|
 | 1 | | J0BNR02J1_LS | | |
 | 2 | 或 | 输煤自动模式 | | |
 | | | 上煤预启动，5S脉冲 | | |
 | | | | 或 | 上煤方式1.1-1.4选择有效 |
 | | | | | 上煤方式2.1-2.4选择有效 |
 
-转换结果：
+**Markdown 输出：**
 
 ```markdown
 ### 1.自动启条件（与）
@@ -100,21 +127,48 @@ Excel 试验条件表 → Markdown / Word 转换工具
 - 输煤自动模式且上煤预启动，5S脉冲且（上煤方式1.1-1.4选择有效或上煤方式2.1-2.4选择有效）
 ```
 
-## 使用步骤
+---
 
-1. 启动服务或打开 HTML 文件
-2. 点击上传区域或拖拽 Excel 文件到页面
-3. 左侧目录树选择要预览的 Sheet
-4. 点击「全部转换」/「合并转换」生成 Markdown
-5. 点击「.md」下载 / 「复制」复制内容 / 「.docx」下载 Word 文件
+## Excel 格式要求
+
+### 列结构
+
+| A列 | B列 | C列 | D列 | E列 |
+|:---:|:---:|:---:|:---:|:---:|
+| 序号 | 分隔符/条件 | 分隔符/条件 | 条件 | 条件 |
+
+### 识别规则
+
+| 内容 | 格式 | 转换结果 |
+|------|------|----------|
+| 子标题 | `一、xxx` | `## 一、xxx` |
+| 分组标题 | `1.xxx（与）` | `### 1.xxx（与）` |
+| 分隔符 | `与` / `或` | 条件连接符 |
+| 条件内容 | 具体文字 | `- 条件内容` |
+
+---
+
+## 项目结构
+
+```
+DCS-Converter/
+├── dcs_converter.html    # 主程序（单文件应用）
+├── xlsx.min.js           # SheetJS Excel 解析库
+├── server.ps1            # 本地 HTTP 服务器
+└── README.md
+```
+
+---
 
 ## 技术栈
 
-- 纯前端实现，无需后端
-- [SheetJS](https://sheetjs.com/) — Excel 解析
-- [html-docx-js](https://github.com/nicktomlin/html-docx-js) — Word 导出
-- 原生 HTML/CSS/JS
+- **前端**: 原生 HTML / CSS / JavaScript
+- **Excel 解析**: [SheetJS](https://sheetjs.com/)
+- **Word 导出**: [html-docx-js](https://github.com/nicktomlin/html-docx-js)
+- **服务器**: PowerShell HTTP Server
+
+---
 
 ## 许可
 
-MIT License
+[MIT License](LICENSE)
