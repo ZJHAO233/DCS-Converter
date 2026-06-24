@@ -1032,6 +1032,55 @@
       .github-link svg {
         opacity: 0.8;
       }
+
+      /* segmented control */
+      .seg-ctrl {
+        display: flex;
+        position: relative;
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 8px;
+        padding: 3px;
+        gap: 2px;
+      }
+      body.light .seg-ctrl {
+        background: rgba(0, 0, 0, 0.06);
+      }
+      .seg-opt {
+        flex: 1;
+        text-align: center;
+        padding: 6px 10px;
+        font-size: 12px;
+        font-weight: 500;
+        color: #64748b;
+        border-radius: 6px;
+        cursor: pointer;
+        position: relative;
+        z-index: 1;
+        transition: background 0.35s ease, color 0.3s ease, box-shadow 0.35s ease, transform 0.2s ease;
+        user-select: none;
+      }
+      .seg-opt:hover:not(.active) {
+        color: #94a3b8;
+        background: rgba(255,255,255,0.05);
+      }
+      body.light .seg-opt:hover:not(.active) {
+        background: rgba(0,0,0,0.04);
+      }
+      .seg-opt.active[data-val="default"] {
+        background: linear-gradient(135deg, #3b82f6, #06b6d4);
+        color: #fff;
+        box-shadow: 0 2px 10px rgba(59, 130, 246, 0.4);
+        transform: scale(1.02);
+      }
+      .seg-opt.active[data-val="minor"] {
+        background: linear-gradient(135deg, #8b5cf6, #ec4899);
+        color: #fff;
+        box-shadow: 0 2px 10px rgba(139, 92, 246, 0.4);
+        transform: scale(1.02);
+      }
+      .seg-opt:active {
+        transform: scale(0.97);
+      }
     </style>
   </head>
     <body class="light">
@@ -1108,6 +1157,15 @@
                 <label>输出名</label
                 ><input class="ni" type="text" id="on2" value="output.md" />
               </div>
+              <div style="margin-top: 10px">
+                <label style="font-size: 11px; color: #64748b;">格式模式</label>
+                <div class="seg-ctrl" id="segMode" data-val="default" style="margin-top: 6px;">
+                  <div class="seg-opt active" data-val="default">标准</div>
+                  <div class="seg-opt" data-val="minor">子项合并</div>
+                </div>
+                <div style="font-size: 10px; color: #475569; margin-top: 4px;" id="modeDesc">标准模式：保留层级结构</div>
+                <input type="hidden" id="formatMode" value="default" />
+              </div>
               <div style="margin-top: 12px">
                 <button class="btn btn-convert" id="ba">
                   <svg
@@ -1122,6 +1180,9 @@
                   </svg>
                   <span id="baText">全部转换</span>
                   <span id="baStatus" style="font-size: 10px; opacity: 0.7; margin-left: 4px;">[单Sheet]</span>
+                </button>
+                <button class="btn btn-debug" id="bdg" style="margin-top: 6px; width: 100%; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); color: #64748b; font-size: 11px; padding: 6px;">
+                  查看原始数据
                 </button>
               </div>
             </div>
@@ -1318,6 +1379,59 @@
           document.getElementById("bd").onclick = download;
           document.getElementById("bc").onclick = copyMd;
           document.getElementById("bw").onclick = downloadWord;
+
+          var segCtrl = document.getElementById("segMode");
+          var modeDesc = document.getElementById("modeDesc");
+          var segOpts = segCtrl.querySelectorAll(".seg-opt");
+          var descriptions = {
+            "default": "标准模式：保留层级结构",
+            "minor": "子项合并：省略父项，子项用分隔符连接"
+          };
+          segOpts.forEach(function(opt) {
+            opt.onclick = function() {
+              var val = opt.getAttribute("data-val");
+              if (document.getElementById("formatMode").value === val) return;
+              document.getElementById("formatMode").value = val;
+              segOpts.forEach(function(o) { 
+                o.classList.remove("active");
+                o.style.transform = "";
+              });
+              requestAnimationFrame(function() {
+                opt.classList.add("active");
+                segCtrl.setAttribute("data-val", val);
+                modeDesc.textContent = descriptions[val] || "";
+              });
+              if (wb) convertAll();
+            };
+          });
+
+          document.getElementById("bdg").onclick = function() {
+            if (!wb) { toast("请先导入文件", "te"); return; }
+            var si = 0;
+            var items = document.querySelectorAll(".dir-item");
+            for (var j = 0; j < items.length; j++) {
+              if (items[j].classList.contains("on")) { si = j; break; }
+            }
+            var s = wb.Sheets[wb.SheetNames[si]];
+            var rng = XLSX.utils.decode_range(s["!ref"]);
+            var lines = [];
+            lines.push("=== Sheet: " + wb.SheetNames[si] + " ===");
+            lines.push("Range: " + rng.s.r + "-" + rng.e.r + " rows, " + rng.s.c + "-" + rng.e.c + " cols");
+            lines.push("");
+            for (var r = rng.s.r; r <= Math.min(rng.e.r, rng.s.r + 60); r++) {
+              var cells = [];
+              for (var c = rng.s.c; c <= Math.min(rng.e.c, 6); c++) {
+                var cl = s[XLSX.utils.encode_cell({ r: r, c: c })];
+                var v = cl ? String(cl.v).trim() : "";
+                if (v.length > 30) v = v.substring(0, 30) + "...";
+                cells.push("[col" + c + "] " + JSON.stringify(v));
+              }
+              lines.push("Row " + r + ": " + cells.join(" | "));
+            }
+            document.getElementById("mo").value = lines.join("\n");
+            document.getElementById("lineCount").textContent = "原始数据 · " + wb.SheetNames[si];
+            toast("显示原始数据", "ti");
+          };
         }
 
         function load(f) {
@@ -1431,6 +1545,10 @@
             }
             rows.push(row);
           }
+          var mode = document.getElementById("formatMode").value;
+          if (mode === "minor") {
+            return procMinor(rows);
+          }
           return proc(rows);
         }
 
@@ -1465,54 +1583,61 @@
                 break;
               }
             }
-            return { sepCol: sepCol, sep: sep, content: content };
+            return { sepCol: sepCol, sep: sep, content: content, isMinorSep: sepCol === 1 };
           }
           function buildNestedExpression(items, seps) {
             if (items.length === 0) return "";
             if (items.length === 1) return items[0];
             var maxDepth = 0;
-            var depthMap = {};
             for (var i = 0; i < seps.length; i++) {
-              var d = seps[i].depth;
-              if (d > maxDepth) maxDepth = d;
-              if (!depthMap[d]) depthMap[d] = [];
-              depthMap[d].push({ index: i, sep: seps[i].sep });
+              if (seps[i].depth > maxDepth) maxDepth = seps[i].depth;
             }
-            var result = items.slice();
+            var nodes = [];
+            for (var i = 0; i < items.length; i++) {
+              nodes.push({ type: "item", value: items[i] });
+              if (i < seps.length) {
+                nodes.push({ type: "sep", depth: seps[i].depth, sep: seps[i].sep });
+              }
+            }
             for (var d = maxDepth; d >= 1; d--) {
-              var groups = depthMap[d];
-              if (!groups || groups.length === 0) continue;
-              var newResult = [];
-              var i = 0;
-              while (i < result.length) {
-                var foundGroup = false;
-                for (var g = 0; g < groups.length; g++) {
-                  var idx = groups[g].index;
-                  if (i === idx) {
-                    var left = result[i];
-                    var right = result[i + 1];
-                    var combined = "(" + left + groups[g].sep + right + ")";
-                    newResult.push(combined);
-                    i += 2;
-                    foundGroup = true;
-                    break;
+              var changed = true;
+              while (changed) {
+                changed = false;
+                var newNodes = [];
+                var i = 0;
+                while (i < nodes.length) {
+                  if (
+                    nodes[i].type === "item" &&
+                    i + 1 < nodes.length && nodes[i + 1].type === "sep" && nodes[i + 1].depth === d &&
+                    i + 2 < nodes.length && nodes[i + 2].type === "item"
+                  ) {
+                    var combined = "(" + nodes[i].value + " " + nodes[i + 1].sep + " " + nodes[i + 2].value + ")";
+                    newNodes.push({ type: "item", value: combined });
+                    i += 3;
+                    changed = true;
+                  } else {
+                    newNodes.push(nodes[i]);
+                    i++;
                   }
                 }
-                if (!foundGroup) {
-                  newResult.push(result[i]);
-                  i++;
-                }
+                nodes = newNodes;
               }
-              result = newResult;
             }
-            return result.join(seps.length > 0 ? seps[0].sep : "\u4E14");
+            var parts = [];
+            for (var i = 0; i < nodes.length; i++) {
+              if (nodes[i].type === "item") {
+                parts.push(nodes[i].value);
+              } else {
+                parts.push(nodes[i].sep);
+              }
+            }
+            return parts.join(" ");
           }
           function flushGroup() {
             if (groupItems.length === 0) return;
-            var expr = buildNestedExpression(
-              groupItems.map(function(x) { return x.content; }),
-              groupItems.map(function(x) { return { depth: x.depth, sep: x.sep }; })
-            );
+            var items = groupItems.map(function(x) { return x.content; });
+            var seps = groupItems.slice(1).map(function(x) { return { depth: x.depth, sep: x.sep }; });
+            var expr = buildNestedExpression(items, seps);
             allGroups.push(expr);
             groupItems = [];
           }
@@ -1525,6 +1650,35 @@
             allGroups = [];
             titleLogic = null;
           }
+          function parseSeq(a) {
+            var m = a.match(/^(\d+)(?:\.(\d+))?$/);
+            if (!m) return null;
+            return { major: parseInt(m[1]), minor: m[2] ? parseInt(m[2]) : null };
+          }
+          var pendingMajor = null;
+          var pendingMajorContent = null;
+          var pendingMinorItems = [];
+          var pendingMinorSeps = [];
+          function flushPendingMajor() {
+            if (pendingMajor === null) return;
+            if (pendingMinorItems.length > 0) {
+              var minorExpr = "";
+              for (var i = 0; i < pendingMinorItems.length; i++) {
+                if (i === 0) {
+                  minorExpr = pendingMinorItems[i];
+                } else {
+                  minorExpr += " " + pendingMinorSeps[i - 1] + " " + pendingMinorItems[i];
+                }
+              }
+              allGroups.push(minorExpr);
+            } else if (pendingMajorContent) {
+              allGroups.push(pendingMajorContent);
+            }
+            pendingMajor = null;
+            pendingMajorContent = null;
+            pendingMinorItems = [];
+            pendingMinorSeps = [];
+          }
           for (var r = 0; r < rows.length; r++) {
             var row = [];
             for (var c = 0; c < 5; c++) {
@@ -1532,6 +1686,7 @@
             }
             var a = row[0], b = row[1], c = row[2], d = row[3], e = row[4];
             if (/^[一二三四五六七八九十]+、/.test(a)) {
+              flushPendingMajor();
               emit();
               out.push("");
               out.push("## " + a);
@@ -1550,11 +1705,13 @@
               a === "\u7ED3\u8BBA" ||
               a === "\u5B58\u5728\u95EE\u9898"
             ) {
+              flushPendingMajor();
               emit();
               ic = false;
               continue;
             }
             if (/^\d+\./.test(a)) {
+              flushPendingMajor();
               emit();
               gi++;
               var tc = a
@@ -1576,8 +1733,73 @@
               if (a === "\u5E8F\u53F7" || a === "\u6761\u4EF6\u5185\u5BB9")
                 continue;
               var info = findSeparatorAndContent(row);
-              if (/^\d+$/.test(a)) {
-                flushGroup();
+              var seq = parseSeq(a);
+              if (seq && seq.minor === null) {
+                var nextHasSep = false;
+                if (r + 1 < rows.length) {
+                  var nextRow = [];
+                  for (var nc = 0; nc < 5; nc++) {
+                    nextRow.push((rows[r + 1][nc] || "").trim());
+                  }
+                  var nextInfo = findSeparatorAndContent(nextRow);
+                  if (nextInfo.isMinorSep) nextHasSep = true;
+                }
+                if (info.isMinorSep) {
+                  if (pendingMajor !== null) {
+                    var minorSep = info.sep || (pendingMinorSeps.length > 0 ? pendingMinorSeps[pendingMinorSeps.length - 1] : (titleLogic || "\u4E14"));
+                    if (pendingMinorItems.length > 0) pendingMinorSeps.push(minorSep);
+                    pendingMinorItems.push(info.content || a);
+                  } else if (allGroups.length > 0) {
+                    var prevContent = allGroups.pop();
+                    pendingMajor = -1;
+                    pendingMajorContent = prevContent;
+                    pendingMinorItems = [];
+                    pendingMinorSeps = [];
+                    var minorSep = info.sep || (titleLogic || "\u4E14");
+                    pendingMinorItems.push(info.content || a);
+                  } else {
+                    pendingMajor = seq.major;
+                    pendingMajorContent = info.content || null;
+                    pendingMinorItems = [];
+                    pendingMinorSeps = [];
+                    var minorSep = info.sep || (titleLogic || "\u4E14");
+                    pendingMinorItems.push(info.content || a);
+                  }
+                } else if (nextHasSep) {
+                  if (pendingMajor !== null) {
+                    flushPendingMajor();
+                  }
+                  pendingMajor = seq.major;
+                  pendingMajorContent = info.content || null;
+                  pendingMinorItems = [];
+                  pendingMinorSeps = [];
+                } else if (pendingMajor !== null && pendingMinorItems.length > 0 && !info.sep) {
+                  var minorSep = pendingMinorSeps.length > 0 ? pendingMinorSeps[pendingMinorSeps.length - 1] : (titleLogic || "\u4E14");
+                  pendingMinorSeps.push(minorSep);
+                  pendingMinorItems.push(info.content || a);
+                } else {
+                  if (pendingMajor !== null) {
+                    flushPendingMajor();
+                  }
+                  if (info.content) {
+                    allGroups.push(info.content);
+                  }
+                }
+              } else if (seq && seq.minor !== null) {
+                if (pendingMajor !== null && (pendingMajor === -1 || seq.major === pendingMajor)) {
+                  if (info.content) {
+                    var minorSep = info.sep || (pendingMinorSeps.length > 0 ? pendingMinorSeps[pendingMinorSeps.length - 1] : (titleLogic || "\u4E14"));
+                    if (pendingMinorItems.length > 0) pendingMinorSeps.push(minorSep);
+                    pendingMinorItems.push(info.content);
+                  }
+                } else {
+                  flushPendingMajor();
+                  if (info.content) {
+                    allGroups.push(info.content);
+                  }
+                }
+              } else if (/^\d+$/.test(a)) {
+                flushPendingMajor();
                 var depth = info.sepCol > 1 ? info.sepCol - 1 : 0;
                 if (info.content) {
                   groupItems.push({
@@ -1618,7 +1840,223 @@
               }
             }
           }
+          flushPendingMajor();
           emit();
+          return out.join("\n");
+        }
+
+        function procMinor(rows) {
+          var out = [];
+          var ic = false;
+          var gi = 0;
+          var titleLogic = null;
+          var parentContent = null;
+          var parentSepC = null;
+          var childItems = [];
+          var groups = [];
+
+          function isL(t) {
+            return t === "\u4E0E" || t === "\u6216";
+          }
+
+          function isSepC(t) {
+            return t === "\u4E0E" || t === "\u6216" || t === "\u4E14";
+          }
+
+          function lS(t) {
+            if (t === "\u4E0E" || t === "\u4E14") return "\u4E14";
+            if (t === "\u6216") return "\u6216";
+            return null;
+          }
+
+          function parseSeq(a) {
+            var m = a.match(/^(\d+)(?:\.(\d+))?$/);
+            if (!m) return null;
+            return { major: parseInt(m[1]), minor: m[2] ? parseInt(m[2]) : null };
+          }
+
+          function isTitle(a) {
+            return /^\d+\.[\u4e00-\u9fa5]/.test(a);
+          }
+
+          function findLogic(a, b) {
+            var markers = [
+              ["\u3008\u4E0E\u3009", "\u4E14"], ["\u3008\u6216\u3009", "\u6216"],
+              ["\uFF08\u4E0E\uFF09", "\u4E14"], ["\uFF08\u6216\uFF09", "\u6216"],
+              ["(\u4E0E)", "\u4E14"], ["(\u6216)", "\u6216"]
+            ];
+            for (var i = 0; i < markers.length; i++) {
+              if (a.indexOf(markers[i][0]) > -1 || b === markers[i][0]) {
+                return markers[i][1];
+              }
+            }
+            return null;
+          }
+
+          function cleanTitle(a) {
+            return a.replace(/\d+\./, "")
+              .replace(/\u3008[\u4E0E\u6216]\u3009/, "")
+              .replace(/\uFF08[\u4E0E\u6216]\uFF09/, "")
+              .replace(/\([\u4E0E\u6216]\)/, "").trim();
+          }
+
+          function formatLogic(logic) {
+            return logic === "\u4E14" ? "\u3008\u4E0E\u3009" : logic === "\u6216" ? "\u3008\u6216\u3009" : "";
+          }
+
+          function findContent(row) {
+            for (var i = row.length - 1; i >= 0; i--) {
+              if (row[i] && !isL(row[i]) && !isSepC(row[i])) {
+                return row[i];
+              }
+            }
+            return null;
+          }
+
+          function getSepInColC(row) {
+            return lS(row[2]) || null;
+          }
+
+          function hasSepInColB(row) {
+            return isL(row[1]);
+          }
+
+          function flushChildren() {
+            if (parentContent === null) return;
+            if (childItems.length === 0) {
+              groups.push(parentContent);
+            } else if (parentSepC && childItems.length > 0) {
+              groups.push(childItems.join(" " + parentSepC + " "));
+            } else {
+              childItems.forEach(function(item) { groups.push(item); });
+            }
+            parentContent = null;
+            parentSepC = null;
+            childItems = [];
+          }
+
+          function emitGroups() {
+            if (groups.length > 0) {
+              groups.forEach(function(g) { out.push("- " + g); });
+              groups = [];
+            }
+          }
+
+          function nextRowHasSepB(idx) {
+            if (idx + 1 >= rows.length) return false;
+            var nextB = (rows[idx + 1][1] || "").trim();
+            return isL(nextB);
+          }
+
+          function hasParentLogic(content) {
+            return /\u3008[\u4E0E\u6216]\u3009/.test(content) ||
+                   /\uFF08[\u4E0E\u6216]\uFF09/.test(content) ||
+                   /[\(（][\u4E0E\u6216][\)）]/.test(content);
+          }
+
+          for (var r = 0; r < rows.length; r++) {
+            var row = [];
+            for (var c = 0; c < 5; c++) {
+              row.push((rows[r][c] || "").trim());
+            }
+            var a = row[0], b = row[1], c = row[2], d = row[3];
+
+            if (/^[\u4E00\u4E8C\u4E09\u56DB\u4E94\u516D\u4E03\u516B\u4E5D\u5341]+\u3001/.test(a)) {
+              flushChildren();
+              emitGroups();
+              out.push("");
+              out.push("## " + a);
+              out.push("");
+              ic = false;
+              gi = 0;
+              continue;
+            }
+
+            if (a === "\u8BD5\u9A8C\u5185\u5BB9") { ic = true; continue; }
+
+            if (a === "\u8BD5\u9A8C\u6761\u4EF6" || a === "\u8BD5\u9A8C\u6062\u590D" || a === "\u7ED3\u8BBA" || a === "\u5B58\u5728\u95EE\u9898") {
+              flushChildren();
+              emitGroups();
+              ic = false;
+              continue;
+            }
+
+            if (isTitle(a)) {
+              flushChildren();
+              emitGroups();
+              gi++;
+              var logic = findLogic(a, b);
+              var tc = cleanTitle(a);
+              if (logic) {
+                titleLogic = logic;
+                out.push("### " + gi + "." + tc + formatLogic(logic));
+              } else {
+                out.push("### " + gi + "." + tc);
+              }
+              out.push("");
+              groups = [];
+              parentContent = null;
+              parentSepC = null;
+              childItems = [];
+              continue;
+            }
+
+            if (ic && gi > 0) {
+              if (a === "\u5E8F\u53F7" || a === "\u6761\u4EF6\u5185\u5BB9") continue;
+
+              var seq = parseSeq(a);
+              var sepB = hasSepInColB(row);
+              var sepC = getSepInColC(row);
+              var content = findContent(row);
+
+              if (seq && sepB) {
+                flushChildren();
+                continue;
+              }
+
+              if (seq && !sepB) {
+                if (nextRowHasSepB(r)) {
+                  flushChildren();
+                  continue;
+                }
+                flushChildren();
+                if (content) {
+                  if (hasParentLogic(content)) {
+                    parentContent = content;
+                    parentSepC = null;
+                    childItems = [];
+                  } else {
+                    groups.push(content);
+                  }
+                }
+                continue;
+              }
+
+              if (!seq && sepB) {
+                flushChildren();
+                parentContent = null;
+                parentSepC = null;
+                childItems = [];
+                if (content) {
+                  groups.push(content);
+                }
+                continue;
+              }
+
+              if (!seq && !sepB && content) {
+                if (parentContent !== null) {
+                  if (sepC) parentSepC = sepC;
+                  childItems.push(content);
+                } else {
+                  groups.push(content);
+                }
+                continue;
+              }
+            }
+          }
+
+          flushChildren();
+          emitGroups();
           return out.join("\n");
         }
 
