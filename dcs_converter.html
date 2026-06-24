@@ -1851,15 +1851,9 @@
           var gi = 0;
           var titleLogic = null;
           var parentContent = null;
-          var parentSepC = null;
           var childItems = [];
-          var groups = [];
 
-          function isL(t) {
-            return t === "\u4E0E" || t === "\u6216";
-          }
-
-          function isSepC(t) {
+          function isSep(t) {
             return t === "\u4E0E" || t === "\u6216" || t === "\u4E14";
           }
 
@@ -1904,54 +1898,25 @@
             return logic === "\u4E14" ? "\u3008\u4E0E\u3009" : logic === "\u6216" ? "\u3008\u6216\u3009" : "";
           }
 
-          function findContent(row) {
-            for (var i = row.length - 1; i >= 0; i--) {
-              if (row[i] && !isL(row[i]) && !isSepC(row[i])) {
+          function getContent(row, skipCols) {
+            for (var i = row.length - 1; i >= (skipCols || 0); i--) {
+              if (row[i] && !isSep(row[i])) {
                 return row[i];
               }
             }
             return null;
           }
 
-          function getSepInColC(row) {
-            return lS(row[2]) || null;
-          }
-
-          function hasSepInColB(row) {
-            return isL(row[1]);
-          }
-
-          function flushChildren() {
+          function flushParent() {
             if (parentContent === null) return;
             if (childItems.length === 0) {
-              groups.push(parentContent);
-            } else if (parentSepC && childItems.length > 0) {
-              groups.push(childItems.join(" " + parentSepC + " "));
+              out.push("- " + parentContent);
             } else {
-              childItems.forEach(function(item) { groups.push(item); });
+              out.push("- " + parentContent);
+              childItems.forEach(function(item) { out.push("  - " + item); });
             }
             parentContent = null;
-            parentSepC = null;
             childItems = [];
-          }
-
-          function emitGroups() {
-            if (groups.length > 0) {
-              groups.forEach(function(g) { out.push("- " + g); });
-              groups = [];
-            }
-          }
-
-          function nextRowHasSepB(idx) {
-            if (idx + 1 >= rows.length) return false;
-            var nextB = (rows[idx + 1][1] || "").trim();
-            return isL(nextB);
-          }
-
-          function hasParentLogic(content) {
-            return /\u3008[\u4E0E\u6216]\u3009/.test(content) ||
-                   /\uFF08[\u4E0E\u6216]\uFF09/.test(content) ||
-                   /[\(（][\u4E0E\u6216][\)）]/.test(content);
           }
 
           for (var r = 0; r < rows.length; r++) {
@@ -1962,8 +1927,7 @@
             var a = row[0], b = row[1], c = row[2], d = row[3];
 
             if (/^[\u4E00\u4E8C\u4E09\u56DB\u4E94\u516D\u4E03\u516B\u4E5D\u5341]+\u3001/.test(a)) {
-              flushChildren();
-              emitGroups();
+              flushParent();
               out.push("");
               out.push("## " + a);
               out.push("");
@@ -1975,15 +1939,13 @@
             if (a === "\u8BD5\u9A8C\u5185\u5BB9") { ic = true; continue; }
 
             if (a === "\u8BD5\u9A8C\u6761\u4EF6" || a === "\u8BD5\u9A8C\u6062\u590D" || a === "\u7ED3\u8BBA" || a === "\u5B58\u5728\u95EE\u9898") {
-              flushChildren();
-              emitGroups();
+              flushParent();
               ic = false;
               continue;
             }
 
             if (isTitle(a)) {
-              flushChildren();
-              emitGroups();
+              flushParent();
               gi++;
               var logic = findLogic(a, b);
               var tc = cleanTitle(a);
@@ -1994,10 +1956,6 @@
                 out.push("### " + gi + "." + tc);
               }
               out.push("");
-              groups = [];
-              parentContent = null;
-              parentSepC = null;
-              childItems = [];
               continue;
             }
 
@@ -2005,58 +1963,41 @@
               if (a === "\u5E8F\u53F7" || a === "\u6761\u4EF6\u5185\u5BB9") continue;
 
               var seq = parseSeq(a);
-              var sepB = hasSepInColB(row);
-              var sepC = getSepInColC(row);
-              var content = findContent(row);
+              var col1IsSep = isSep(b);
+              var col2IsSep = isSep(c);
 
-              if (seq && sepB) {
-                flushChildren();
-                continue;
-              }
-
-              if (seq && !sepB) {
-                if (nextRowHasSepB(r)) {
-                  flushChildren();
-                  continue;
-                }
-                flushChildren();
-                if (content) {
-                  if (hasParentLogic(content)) {
-                    parentContent = content;
-                    parentSepC = null;
-                    childItems = [];
-                  } else {
-                    groups.push(content);
-                  }
-                }
-                continue;
-              }
-
-              if (!seq && sepB) {
-                flushChildren();
-                parentContent = null;
-                parentSepC = null;
+              if (seq && !col1IsSep && b) {
+                flushParent();
+                parentContent = b;
                 childItems = [];
-                if (content) {
-                  groups.push(content);
+                continue;
+              }
+
+              if (col1IsSep) {
+                var content = getContent(row, col2IsSep ? 3 : 2);
+                if (parentContent !== null) {
+                  if (content) childItems.push(content);
+                } else {
+                  if (content) out.push("- " + content);
                 }
                 continue;
               }
 
-              if (!seq && !sepB && content) {
-                if (parentContent !== null) {
-                  if (sepC) parentSepC = sepC;
-                  childItems.push(content);
-                } else {
-                  groups.push(content);
+              if (!col1IsSep) {
+                var content = getContent(row, col2IsSep ? 3 : 0);
+                if (content) {
+                  if (parentContent !== null) {
+                    childItems.push(content);
+                  } else {
+                    out.push("- " + content);
+                  }
                 }
                 continue;
               }
             }
           }
 
-          flushChildren();
-          emitGroups();
+          flushParent();
           return out.join("\n");
         }
 
